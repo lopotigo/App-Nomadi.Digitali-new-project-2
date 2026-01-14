@@ -1,89 +1,38 @@
 import React, { useState } from "react";
-import { supabase } from "./supabaseClient";
 
-type Props = {
-  onSuccess?: () => void;
-};
+const BACKEND = import.meta.env.VITE_BACKEND_URL ?? ""; // es: "http://localhost:3000" o "" per stesso dominio
 
-export default function AuthForm({ onSuccess }: Props) {
-  const [isSignup, setIsSignup] = useState(false);
+export default function AuthForm({ onSuccess }: { onSuccess?: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    setMessage(null);
-
+    setMsg(null);
     try {
-      if (!supabase) throw new Error("Supabase non configurato");
-
-      if (isSignup) {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-        });
-        if (error) throw error;
-        setMessage(
-          "Registrazione inviata. Controlla la tua email per verificare l'account (se abilitato)."
-        );
-      } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
-        setMessage("Login effettuato.");
-        onSuccess?.();
-      }
+      const r = await fetch(`${BACKEND}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || "Login failed");
+      // Supporto vari formati: supabase returns { session } or { access_token }
+      const accessToken = data?.session?.access_token ?? data?.access_token ?? null;
+      if (accessToken) localStorage.setItem("token", accessToken);
+      onSuccess?.();
     } catch (err: any) {
-      setMessage(err.message ?? "Errore durante l'autenticazione");
-    } finally {
-      setLoading(false);
+      setMsg(err.message || "Errore");
     }
   }
 
   return (
-    <div style={{ maxWidth: 420, margin: "0 auto" }}>
-      <h2>{isSignup ? "Registrati" : "Accedi"}</h2>
-      {message && <div style={{ marginBottom: 12 }}>{message}</div>}
-      <form onSubmit={handleSubmit}>
-        <label style={{ display: "block", marginBottom: 8 }}>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={{ width: "100%", padding: 8, marginTop: 4 }}
-          />
-        </label>
-
-        <label style={{ display: "block", marginBottom: 8 }}>
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={{ width: "100%", padding: 8, marginTop: 4 }}
-          />
-        </label>
-
-        <button type="submit" disabled={loading} style={{ marginRight: 8 }}>
-          {loading ? "Caricamento..." : isSignup ? "Registrati" : "Accedi"}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setIsSignup((s) => !s)}
-          style={{ background: "transparent" }}
-        >
-          {isSignup ? "Ho già un account" : "Crea un account"}
-        </button>
-      </form>
-    </div>
+    <form onSubmit={handleSubmit}>
+      {msg && <div>{msg}</div>}
+      <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+      <button type="submit">Accedi</button>
+    </form>
   );
 }
