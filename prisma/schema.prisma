@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  passwordHash String
+  bio          String?
+  createdAt    DateTime @default(now())
+
+  // avatar relation (the foreign key lives in Media.userAvatarId)
+  avatar       Media?   @relation("AvatarRelation")
+
+  // inverse relations
+  posts        Post[]
+  bookings     Booking[]
+  messages     Message[]
+  likes        Like[]
+  comments     Comment[]
+  routes       Route[]
+}
+
+model City {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  lat         Float
+  lng         Float
+  nomadsCount Int      @default(0)
+  description String?
+  places      Place[]
+  events      Event[]
+  routes      Route[]
+}
+
+model Place {
+  id          String   @id @default(cuid())
+  cityId      String
+  city        City     @relation(fields: [cityId], references: [id])
+  type        String   // HOTEL | COWORKING (stored as string for sqlite compatibility)
+  name        String
+  rating      Float    @default(0)
+  lat         Float
+  lng         Float
+  description String?
+  createdAt   DateTime @default(now())
+  bookings    Booking[]
+  media       Media[]
+}
+
+model Event {
+  id          String   @id @default(cuid())
+  cityId      String
+  city        City     @relation(fields: [cityId], references: [id])
+  title       String
+  startAt     DateTime
+  endAt       DateTime
+  venueId     String?
+  description String?
+  createdAt   DateTime @default(now())
+  bookings    Booking[]
+  media       Media[]
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  caption   String?
+  createdAt DateTime @default(now())
+  media     Media[]
+  likes     Like[]
+  comments  Comment[]
+}
+
+model Media {
+  id           String   @id @default(cuid())
+  filename     String
+  mimeType     String
+  data         Bytes
+  size         Int
+  uploadedAt   DateTime @default(now())
+
+  // optional relations to Post / Place / Event
+  postId       String?
+  post         Post?    @relation(fields: [postId], references: [id])
+
+  placeId      String?
+  place        Place?   @relation(fields: [placeId], references: [id])
+
+  eventId      String?
+  event        Event?   @relation(fields: [eventId], references: [id])
+
+  // avatar relation: FK stored here, points to User.id
+    userAvatarId String? @unique
+  userAvatar   User?    @relation("AvatarRelation", fields: [userAvatarId], references: [id])
+
+  // inverse relation for messages that reference this media
+  messages     Message[]
+}
+
+model Booking {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  placeId   String?
+  place     Place?   @relation(fields: [placeId], references: [id])
+  eventId   String?
+  event     Event?   @relation(fields: [eventId], references: [id])
+  startAt   DateTime
+  endAt     DateTime
+  guests    Int
+  status    String   @default("PENDING") // PENDING | CONFIRMED | CANCELLED
+  createdAt DateTime @default(now())
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id])
+  text      String
+  createdAt DateTime @default(now())
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  room      String
+  senderId  String
+  sender    User     @relation(fields: [senderId], references: [id])
+  text      String?
+  mediaId   String?
+  media     Media?   @relation(fields: [mediaId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model Route {
+  id        String   @id @default(cuid())
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  cityId    String?
+  city      City?    @relation(fields: [cityId], references: [id])
+  title     String
+  points    String   // JSON string of points (array of {lat,lng}) for sqlite compatibility
+  ecoScore  Int
+  createdAt DateTime @default(now())
+}
